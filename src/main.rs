@@ -31,6 +31,12 @@ fn analyse(args: &Cli, wav: &mut Wav<i32>) -> u8 {
         analysers.push(Box::new(UnderrunAnalyser::new(args, wav)));
     }
 
+    #[cfg(feature = "fft")]
+    if args.fft && args.json.is_some() {
+        // FFT output is only written with JSON
+        analysers.push(Box::new(analysers::fft::FftAnalyser::new(args, wav)));
+    }
+
     let digits = wav.n_samples().to_string().len();
     let num_frames = wav.n_samples();
     let frames = wav.frames();

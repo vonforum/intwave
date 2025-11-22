@@ -5,7 +5,7 @@ use serde::Serialize;
 use wavers::{Samples, Wav};
 
 use super::Analyser;
-use crate::{debug, output, output::frame_to_time};
+use crate::{cli::Cli, debug, output, output::frame_to_time};
 
 #[derive(Debug, Clone)]
 pub struct SilenceState {
@@ -68,7 +68,7 @@ pub struct LoudnessAnalyser {
 }
 
 impl LoudnessAnalyser {
-    pub fn new(args: &crate::cli::Cli, wav: &Wav<i32>) -> Result<Self, EbuR128Error> {
+    pub fn new(args: &Cli, wav: &Wav<i32>) -> Result<Self, EbuR128Error> {
         let (_, spec) = wav.wav_spec();
         let sample_rate = spec.fmt_chunk.sample_rate;
         let loudness = EbuR128::new(
@@ -251,7 +251,7 @@ impl Analyser for LoudnessAnalyser {
         0
     }
 
-    fn json(&self) -> Vec<(String, serde_json::Value)> {
+    fn json(&self, _: &Cli) -> Vec<(String, serde_json::Value)> {
         let mut results = vec![];
 
         if let Some(windows) = &self.loudness_windows

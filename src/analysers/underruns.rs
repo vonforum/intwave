@@ -2,7 +2,7 @@ use serde::Serialize;
 use wavers::{Samples, Wav};
 
 use super::Analyser;
-use crate::{debug, output, output::frame_to_time};
+use crate::{cli::Cli, debug, output, output::frame_to_time};
 
 #[derive(Debug, Clone)]
 pub struct DetectorState {
@@ -40,7 +40,7 @@ pub struct UnderrunAnalyser {
 }
 
 impl UnderrunAnalyser {
-    pub fn new(args: &crate::cli::Cli, wav: &Wav<i32>) -> Self {
+    pub fn new(args: &Cli, wav: &Wav<i32>) -> Self {
         Self {
             contains_underrun: false,
             num_frames: wav.n_samples(),
@@ -138,7 +138,7 @@ impl Analyser for UnderrunAnalyser {
         }
     }
 
-    fn json(&self) -> Vec<(String, serde_json::Value)> {
+    fn json(&self, _: &Cli) -> Vec<(String, serde_json::Value)> {
         if self.segments.is_empty() {
             return Vec::new();
         }

@@ -50,4 +50,16 @@ pub struct Cli {
     /// Track loudness to JSON (does nothing if JSON output is not enabled)
     #[arg(short, long, default_value_t = false)]
     pub loudness: bool,
+
+    /// Track FFT to file (does nothing if JSON output is not enabled)
+    #[arg(short, long, default_value_t = false)]
+    pub fft: bool,
+
+    /// Number of FFT bins
+    #[arg(long, default_value_t = 2048)]
+    pub fft_bins: usize,
+
+    /// FFT output file (defaults to <json_file>_fft.png)
+    #[arg(long)]
+    pub fft_file: Option<String>,
 }
