@@ -4,6 +4,7 @@ mod json;
 mod output;
 
 use clap::Parser;
+use std::path::PathBuf;
 use std::process::ExitCode;
 use wavers::{Wav, WaversResult};
 
@@ -16,7 +17,7 @@ use crate::{analysers::underruns::UnderrunAnalyser, json::write_json};
 const ERR_CONTAINS_UNDERRUN: u8 = 0b0001;
 const ERR_CONTAINS_SILENCE: u8 = 0b0010;
 
-fn analyse(args: &Cli, wav: &mut Wav<i32>) -> u8 {
+fn analyse(args: &Cli, wav: &mut Wav<i32>) -> Result<u8, ()> {
     let mut return_code = 0;
 
     let mut analysers: Vec<Box<dyn Analyser>> = vec![];
@@ -32,9 +33,49 @@ fn analyse(args: &Cli, wav: &mut Wav<i32>) -> u8 {
     }
 
     #[cfg(feature = "fft")]
-    if args.fft && args.json.is_some() {
-        // FFT output is only written with JSON
-        analysers.push(Box::new(analysers::fft::FftAnalyser::new(args, wav)));
+    if args.fft {
+        // Set FFT output path to either the provided FFT file path,
+        // or derive it from the JSON output path.
+        if let Some(file) = args.fft_file.as_ref() {
+            let path = PathBuf::from(file);
+            analysers.push(Box::new(analysers::fft::FftAnalyser::new(args, wav, path)));
+        } else if let Some(json) = args.json.as_ref() {
+            let mut path = PathBuf::from(json);
+            let name = path.file_stem().unwrap().to_string_lossy();
+            path.set_file_name(format!("{name}_fft.png"));
+
+            analysers.push(Box::new(analysers::fft::FftAnalyser::new(args, wav, path)));
+        } else {
+            println!(
+                "FFT output was enabled, but neither a JSON file or FFT output file path was provided. Skipping FFT analysis."
+            );
+        }
+    }
+
+    if analysers.is_empty() {
+        println!("No detection is active, exiting.");
+        return Err(());
+    }
+
+    let (_, spec) = wav.wav_spec();
+    init_output(&args, wav.n_samples() as u64);
+
+    output!("[+] sample rate:        {}", &spec.fmt_chunk.sample_rate);
+    output!("[+] channels:           {}", wav.n_channels());
+    output!("[+] total samples:      {}", wav.n_samples());
+
+    if args.silence {
+        output!("[+] silence threshold:  {} LUFS-S", &args.lufs);
+        output!("[+] silence window:     {} seconds", &args.window_size);
+    }
+
+    if args.underrun {
+        output!("[+] underrun threshold: {} samples", &args.samples);
+    }
+
+    #[cfg(feature = "fft")]
+    if args.fft {
+        output!("[+] FFT bins:           {}", &args.fft_bins);
     }
 
     let digits = wav.n_samples().to_string().len();
@@ -60,7 +101,7 @@ fn analyse(args: &Cli, wav: &mut Wav<i32>) -> u8 {
 
     write_json(args, wav, &analysers);
 
-    return_code
+    Ok(return_code)
 }
 
 fn main() -> ExitCode {
@@ -70,28 +111,9 @@ fn main() -> ExitCode {
         return ExitCode::from(1);
     };
 
-    if !args.underrun && !args.silence && !args.loudness {
-        println!("No detection is active, exiting.");
+    let Ok(code) = analyse(&args, &mut wav) else {
         return ExitCode::from(1);
-    }
-
-    let (_, spec) = wav.wav_spec();
-    init_output(&args, wav.n_samples() as u64);
-
-    output!("[+] sample rate:        {}", &spec.fmt_chunk.sample_rate);
-    output!("[+] channels:           {}", wav.n_channels());
-    output!("[+] total samples:      {}", wav.n_samples());
-
-    if args.silence {
-        output!("[+] silence threshold:  {} LUFS-S", &args.lufs);
-        output!("[+] silence window:     {} seconds", &args.window_size);
-    }
-
-    if args.underrun {
-        output!("[+] underrun threshold: {} samples", &args.samples);
-    }
-
-    let code = analyse(&args, &mut wav);
+    };
 
     ExitCode::from(code)
 }

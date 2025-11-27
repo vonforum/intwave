@@ -1,8 +1,4 @@
-use std::{
-    fs::File,
-    io::BufWriter,
-    path::{Path, PathBuf},
-};
+use std::{fs::File, io::BufWriter, path::PathBuf};
 
 use aus::{
     analysis::{make_log_spectrum, make_power_spectrum},
@@ -22,11 +18,12 @@ pub struct FftAnalyser {
     counter: usize,
     bins: Vec<Vec<f64>>, // [channel][bin]
     results: Vec<u8>,
+    path: PathBuf,
 }
 
 /** Writes FFT results to a .png file as little-endian raw bytes. */
 impl FftAnalyser {
-    pub fn new(args: &Cli, wav: &Wav<i32>) -> Self {
+    pub fn new(args: &Cli, wav: &Wav<i32>, path: PathBuf) -> Self {
         let channels = wav.n_channels() as usize;
 
         Self {
@@ -35,6 +32,7 @@ impl FftAnalyser {
             counter: 0,
             bins: vec![Vec::new(); channels],
             results: vec![],
+            path,
         }
     }
 }
@@ -76,21 +74,14 @@ impl Analyser for FftAnalyser {
             }
         }
 
-        0
-    }
+        let Ok(file) = File::create(&self.path) else {
+            println!(
+                "FFT: Could not create output file at {}",
+                self.path.display()
+            );
 
-    fn json(&self, args: &Cli) -> Vec<(String, serde_json::Value)> {
-        // Set output path to either fft_file or next to json with _fft suffix
-        let mut path;
-        if let Some(file) = args.fft_file.as_ref() {
-            path = PathBuf::from(file);
-        } else {
-            path = PathBuf::from(args.json.as_ref().unwrap());
-            let name = path.file_stem().unwrap().to_string_lossy();
-            path.set_file_name(format!("{name}_fft.png"));
+            return 0;
         };
-
-        let file = File::create(&path).expect("Could not create FFT output file");
         let mut w = BufWriter::new(file);
 
         // Create an image where each row is a single time slice with each channel concatenated
@@ -101,21 +92,32 @@ impl Analyser for FftAnalyser {
         encoder.set_color(ColorType::Rgba);
         encoder.set_depth(BitDepth::Sixteen);
 
-        let mut writer = encoder.write_header().expect("Could not write PNG header");
+        let Ok(mut writer) = encoder.write_header() else {
+            println!("FFT: Could not write PNG header");
 
-        writer
-            .write_image_data(&self.results)
-            .expect("Could not write FFT image data");
+            return 0;
+        };
 
+        let Ok(_) = writer.write_image_data(&self.results) else {
+            println!("Could not write FFT image data");
+
+            return 0;
+        };
+
+        0
+    }
+
+    fn json(&self) -> Vec<(String, serde_json::Value)> {
         let mut map = Map::new();
 
-        if let Some(json_dir) = Path::new(args.json.as_ref().unwrap()).parent() {
-            path = path.strip_prefix(json_dir).unwrap_or(&path).to_path_buf();
-        }
+        // We can canonicalize here because the file has already been written in finish()
+        let Ok(path) = self.path.canonicalize() else {
+            return vec![];
+        };
 
         map.insert(
             "output".to_string(),
-            serde_json::Value::from(path.to_string_lossy().to_string()),
+            serde_json::Value::from(path.to_string_lossy()),
         );
 
         vec![(

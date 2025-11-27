@@ -138,7 +138,7 @@ impl Analyser for UnderrunAnalyser {
         }
     }
 
-    fn json(&self, _: &Cli) -> Vec<(String, serde_json::Value)> {
+    fn json(&self) -> Vec<(String, serde_json::Value)> {
         if self.segments.is_empty() {
             return Vec::new();
         }
