@@ -149,19 +149,23 @@ impl FftVisualizer {
     }
 }
 
+struct FftOutput {
+    results: Vec<u8>,
+    path: PathBuf,
+}
+
 pub struct FftAnalyser {
     fft_size: usize,
     channels: usize,
     counter: usize,
     bins: Vec<Vec<f64>>, // [channel][bin]
-    results: Vec<u8>,
-    path: PathBuf,
+    raw: Option<FftOutput>,
     vis: Option<FftVisualizer>,
 }
 
 /** Writes FFT results to a .png file as little-endian raw bytes. */
 impl FftAnalyser {
-    pub fn new(args: &Cli, wav: &Wav<i32>, path: PathBuf) -> Self {
+    pub fn new(args: &Cli, wav: &Wav<i32>, path: Option<PathBuf>) -> Self {
         let channels = wav.n_channels() as usize;
 
         Self {
@@ -169,8 +173,10 @@ impl FftAnalyser {
             channels,
             counter: 0,
             bins: vec![Vec::new(); channels],
-            results: vec![],
-            path,
+            raw: path.map(|path| FftOutput {
+                results: vec![],
+                path,
+            }),
             vis: args.fft_vis.as_ref().map(|p| FftVisualizer::new(p)),
         }
     }
@@ -196,8 +202,11 @@ impl Analyser for FftAnalyser {
             // Perform FFT for each channel
             for bins in self.bins.iter_mut() {
                 let spectrum = analyse_bins(self.fft_size, bins);
-                self.results
-                    .extend(spectrum.iter().map(|f| f.to_le_bytes()).flatten());
+
+                if let Some(raw) = &mut self.raw {
+                    raw.results
+                        .extend(spectrum.iter().map(|f| f.to_le_bytes()).flatten());
+                }
 
                 if let Some(vis) = &mut self.vis {
                     vis.extend(spectrum.iter().cloned());
@@ -215,8 +224,11 @@ impl Analyser for FftAnalyser {
             if !bins.is_empty() {
                 bins.extend(vec![0.0; self.fft_size - bins.len()]); // Zero-pad to fft_size
                 let spectrum = analyse_bins(self.fft_size, bins);
-                self.results
-                    .extend(spectrum.iter().map(|f| f.to_le_bytes()).flatten());
+
+                if let Some(raw) = &mut self.raw {
+                    raw.results
+                        .extend(spectrum.iter().map(|f| f.to_le_bytes()).flatten());
+                }
 
                 if let Some(vis) = &mut self.vis {
                     vis.extend(spectrum.iter().cloned());
@@ -226,16 +238,22 @@ impl Analyser for FftAnalyser {
 
         // Create an image where each row is a single time slice with each channel concatenated
         let width = self.channels * (self.fft_size / 2 + 1);
-        let height = self.results.len() / (width * 8);
 
         if let Some(vis) = &self.vis {
+            let height = vis.data.len() / width;
             vis.visualize(width, height);
         }
 
-        let Ok(file) = File::create(&self.path) else {
+        if self.raw.is_none() {
+            return 0;
+        }
+
+        let raw = self.raw.as_ref().unwrap();
+        let height = raw.results.len() / (width * 8);
+        let Ok(file) = File::create(&raw.path) else {
             println!(
                 "FFT: Could not create output file at {}",
-                self.path.display()
+                raw.path.display()
             );
 
             return 0;
@@ -252,7 +270,7 @@ impl Analyser for FftAnalyser {
             return 0;
         };
 
-        let Ok(_) = writer.write_image_data(&self.results) else {
+        let Ok(_) = writer.write_image_data(&raw.results) else {
             println!("Could not write FFT image data");
 
             return 0;
@@ -264,13 +282,15 @@ impl Analyser for FftAnalyser {
     fn json(&self) -> Vec<(String, serde_json::Value)> {
         let mut map = Map::new();
 
-        // We can canonicalize here because the file has already been written in finish()
-        if let Ok(path) = self.path.canonicalize() {
-            map.insert(
-                "output".to_string(),
-                serde_json::Value::from(path.to_string_lossy()),
-            );
-        };
+        if let Some(raw) = &self.raw {
+            // We can canonicalize here because the file has already been written in finish()
+            if let Ok(path) = raw.path.canonicalize() {
+                map.insert(
+                    "output".to_string(),
+                    serde_json::Value::from(path.to_string_lossy()),
+                );
+            };
+        }
 
         if let Some(vis) = &self.vis {
             if let Ok(vis_path) = vis.path.canonicalize() {

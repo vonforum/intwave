@@ -51,7 +51,7 @@ pub struct Cli {
     #[arg(short, long, default_value_t = false)]
     pub loudness: bool,
 
-    /// Track FFT to file (does nothing if JSON output is not enabled)
+    /// Track FFT to file
     #[arg(short, long, default_value_t = false)]
     pub fft: bool,
 

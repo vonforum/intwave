@@ -28,22 +28,31 @@ fn analyse(args: &Cli, wav: &mut Wav<i32>) -> Result<u8, ()> {
     }
 
     #[cfg(feature = "fft")]
-    if args.fft {
-        // Set FFT output path to either the provided FFT file path,
-        // or derive it from the JSON output path.
-        if let Some(file) = args.fft_file.as_ref() {
-            let path = PathBuf::from(file);
-            analysers.push(Box::new(FftAnalyser::new(args, wav, path)));
-        } else if let Some(json) = args.json.as_ref() {
-            let mut path = PathBuf::from(json);
-            let name = path.file_stem().unwrap().to_string_lossy();
-            path.set_file_name(format!("{name}_fft.png"));
+    if args.fft || args.fft_vis.is_some() {
+        let mut path = None;
+        if args.fft {
+            // Set FFT output path to either the provided FFT file path,
+            // or derive it from the JSON output path.
+            path = if let Some(file) = args.fft_file.as_ref() {
+                Some(PathBuf::from(file))
+            } else if let Some(json) = args.json.as_ref() {
+                let mut path = PathBuf::from(json);
+                let name = path.file_stem().unwrap().to_string_lossy();
+                path.set_file_name(format!("{name}_fft.png"));
 
-            analysers.push(Box::new(FftAnalyser::new(args, wav, path)));
-        } else {
+                Some(path)
+            } else {
+                None
+            };
+        }
+
+        if args.fft && path.is_none() {
             println!(
-                "FFT output was enabled, but neither a JSON file or FFT output file path was provided. Skipping FFT analysis."
+                "FFT output was enabled but no path could be determined, please provide --fft-file or --json"
             );
+            return Err(());
+        } else {
+            analysers.push(Box::new(FftAnalyser::new(args, wav, path)));
         }
     }
 
@@ -69,7 +78,7 @@ fn analyse(args: &Cli, wav: &mut Wav<i32>) -> Result<u8, ()> {
     }
 
     #[cfg(feature = "fft")]
-    if args.fft {
+    if args.fft || args.fft_vis.is_some() {
         output!("[+] FFT bins:           {}", &args.fft_bins);
     }
 
