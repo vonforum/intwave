@@ -62,4 +62,8 @@ pub struct Cli {
     /// FFT output file (defaults to <json_file>_fft.png)
     #[arg(long)]
     pub fft_file: Option<String>,
+
+    /// Visualize the FFT output to the given file
+    #[arg(long)]
+    pub fft_vis: Option<String>,
 }

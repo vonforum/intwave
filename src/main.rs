@@ -1,21 +1,16 @@
-mod analysers;
-mod cli;
-mod json;
-mod output;
-
 use clap::Parser;
 use std::path::PathBuf;
 use std::process::ExitCode;
 use wavers::{Wav, WaversResult};
 
-use analysers::{Analyser, loudness::LoudnessAnalyser};
-use cli::Cli;
-use output::{fmt_frame, init_output};
+use analwave::analysers::{
+    Analyser, fft::FftAnalyser, loudness::LoudnessAnalyser, underruns::UnderrunAnalyser,
+};
+use analwave::cli::Cli;
+use analwave::output;
+use analwave::output::{fmt_frame, init_output};
 
-use crate::{analysers::underruns::UnderrunAnalyser, json::write_json};
-
-const ERR_CONTAINS_UNDERRUN: u8 = 0b0001;
-const ERR_CONTAINS_SILENCE: u8 = 0b0010;
+use analwave::json::write_json;
 
 fn analyse(args: &Cli, wav: &mut Wav<i32>) -> Result<u8, ()> {
     let mut return_code = 0;
@@ -38,13 +33,13 @@ fn analyse(args: &Cli, wav: &mut Wav<i32>) -> Result<u8, ()> {
         // or derive it from the JSON output path.
         if let Some(file) = args.fft_file.as_ref() {
             let path = PathBuf::from(file);
-            analysers.push(Box::new(analysers::fft::FftAnalyser::new(args, wav, path)));
+            analysers.push(Box::new(FftAnalyser::new(args, wav, path)));
         } else if let Some(json) = args.json.as_ref() {
             let mut path = PathBuf::from(json);
             let name = path.file_stem().unwrap().to_string_lossy();
             path.set_file_name(format!("{name}_fft.png"));
 
-            analysers.push(Box::new(analysers::fft::FftAnalyser::new(args, wav, path)));
+            analysers.push(Box::new(FftAnalyser::new(args, wav, path)));
         } else {
             println!(
                 "FFT output was enabled, but neither a JSON file or FFT output file path was provided. Skipping FFT analysis."
