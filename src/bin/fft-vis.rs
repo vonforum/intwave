@@ -46,8 +46,6 @@ fn main() {
             continue;
         }
 
-        v = (v / 10.0).powi(10);
-
         if vis.min.is_none() || v < vis.min.unwrap() {
             vis.min = Some(v);
         }

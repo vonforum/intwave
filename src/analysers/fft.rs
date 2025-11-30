@@ -70,8 +70,6 @@ impl FftVisualizer {
                 return v;
             }
 
-            let v = (v / 10.0).powi(10);
-
             // Update min and max while mapping to avoid another iteration
             if self.min.is_none() || (self.min.is_some() && v < self.min.unwrap()) {
                 self.min = Some(v);
@@ -186,7 +184,7 @@ fn analyse_bins(fft_size: usize, bins: &[f64]) -> Vec<f64> {
     let imaginary = rfft(bins, fft_size);
     let (magnitude, _) = complex_to_polar_rfft(&imaginary);
     let power_spectrum = make_power_spectrum(&magnitude);
-    make_log_spectrum(&power_spectrum, 1.0, -10e8, None)
+    make_log_spectrum(&power_spectrum, 10.0, -10e8, None)
 }
 
 impl Analyser for FftAnalyser {
