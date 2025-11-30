@@ -51,7 +51,7 @@ pub struct Cli {
     #[arg(short, long, default_value_t = false)]
     pub loudness: bool,
 
-    /// Track FFT to file (does nothing if JSON output is not enabled)
+    /// Track FFT to file
     #[arg(short, long, default_value_t = false)]
     pub fft: bool,
 
@@ -62,4 +62,8 @@ pub struct Cli {
     /// FFT output file (defaults to <json_file>_fft.png)
     #[arg(long)]
     pub fft_file: Option<String>,
+
+    /// Visualize the FFT output to the given file
+    #[arg(long)]
+    pub fft_vis: Option<String>,
 }

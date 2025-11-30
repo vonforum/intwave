@@ -251,7 +251,7 @@ impl Analyser for LoudnessAnalyser {
         0
     }
 
-    fn json(&self, _: &Cli) -> Vec<(String, serde_json::Value)> {
+    fn json(&self) -> Vec<(String, serde_json::Value)> {
         let mut results = vec![];
 
         if let Some(windows) = &self.loudness_windows

@@ -1,7 +1,8 @@
 [package]
 name = "analwave"
-version = "0.3.2"
+version = "0.3.3"
 edition = "2024"
+default-run = "analwave"
 
 [dependencies]
 clap = { version = "4.5.48", features = ["derive"] }
@@ -16,3 +17,7 @@ png = { version = "0.18.0", optional = true }
 [features]
 default = ["fft"]
 fft = ["dep:aus", "dep:png"]
+
+[[bin]]
+name = "fft-vis"
+required-features = ["fft"]
