@@ -29,7 +29,7 @@ fn main() {
 
     let mut vis = FftVisualizer::new(args.output);
     for byte in (0..bytes.len()).step_by(8) {
-        let mut v = f64::from_le_bytes([
+        let v = f64::from_le_bytes([
             bytes[byte],
             bytes[byte + 1],
             bytes[byte + 2],
@@ -39,12 +39,6 @@ fn main() {
             bytes[byte + 6],
             bytes[byte + 7],
         ]);
-
-        if v <= -1000000000.0 {
-            vis.data.push(v);
-
-            continue;
-        }
 
         if vis.min.is_none() || v < vis.min.unwrap() {
             vis.min = Some(v);

@@ -5,8 +5,9 @@ use std::{
 };
 
 use aus::{
-    analysis::{make_log_spectrum, make_power_spectrum},
-    spectrum::{complex_to_polar_rfft, rfft},
+    WindowType,
+    analysis::{make_log_spectrogram, make_power_spectrogram},
+    spectrum::{complex_to_polar_rstft, rstft},
 };
 use png::{BitDepth, ColorType, Encoder};
 use serde_json::Map;
@@ -38,10 +39,6 @@ impl FftVisualizer {
 
     pub fn find_min_max(&mut self) {
         let (min, max) = self.data.iter().fold((None, None), |(min, max), &value| {
-            if value <= -1000000000.0 {
-                return (min, max);
-            }
-
             let min = match min {
                 Some(m) if value < m => Some(value),
                 Some(m) => Some(m),
@@ -66,10 +63,6 @@ impl FftVisualizer {
         I: IntoIterator<Item = f64>,
     {
         self.data.extend(data.into_iter().map(|v| {
-            if v <= -1000000000.0 {
-                return v;
-            }
-
             // Update min and max while mapping to avoid another iteration
             if self.min.is_none() || (self.min.is_some() && v < self.min.unwrap()) {
                 self.min = Some(v);
@@ -102,7 +95,7 @@ impl FftVisualizer {
         for (i, value) in self
             .data
             .iter()
-            .map(|v| ((v - min) / range).clamp(0.0, 1.0))
+            .map(|v| ((v - min) / range).clamp(0.0, 1.0).powi(2)) // Squaring for better contrast
             .enumerate()
         {
             let blue = (value * 3.0).min(1.0);
@@ -155,7 +148,6 @@ struct FftOutput {
 pub struct FftAnalyser {
     fft_size: usize,
     channels: usize,
-    counter: usize,
     bins: Vec<Vec<f64>>, // [channel][bin]
     raw: Option<FftOutput>,
     vis: Option<FftVisualizer>,
@@ -169,7 +161,6 @@ impl FftAnalyser {
         Self {
             fft_size: args.fft_bins,
             channels,
-            counter: 0,
             bins: vec![Vec::new(); channels],
             raw: path.map(|path| FftOutput {
                 results: vec![],
@@ -180,56 +171,42 @@ impl FftAnalyser {
     }
 }
 
-fn analyse_bins(fft_size: usize, bins: &[f64]) -> Vec<f64> {
-    let imaginary = rfft(bins, fft_size);
-    let (magnitude, _) = complex_to_polar_rfft(&imaginary);
-    let power_spectrum = make_power_spectrum(&magnitude);
-    make_log_spectrum(&power_spectrum, 10.0, -10e8, None)
-}
-
 impl Analyser for FftAnalyser {
     fn analyse(&mut self, _label: &str, _frame_counter: usize, frame: &Samples<i32>) {
         for (channel_index, sample) in frame.iter().enumerate() {
             let bin = *sample as f64;
             self.bins[channel_index].push(bin);
         }
-
-        self.counter += 1;
-
-        if self.counter >= self.fft_size {
-            // Perform FFT for each channel
-            for bins in self.bins.iter_mut() {
-                let spectrum = analyse_bins(self.fft_size, bins);
-
-                if let Some(raw) = &mut self.raw {
-                    raw.results
-                        .extend(spectrum.iter().map(|f| f.to_le_bytes()).flatten());
-                }
-
-                if let Some(vis) = &mut self.vis {
-                    vis.extend(spectrum.iter().cloned());
-                }
-
-                bins.clear();
-            }
-
-            self.counter = 0;
-        }
     }
 
     fn finish(&mut self, _label: &str) -> u8 {
-        for bins in self.bins.iter_mut() {
-            if !bins.is_empty() {
-                bins.extend(vec![0.0; self.fft_size - bins.len()]); // Zero-pad to fft_size
-                let spectrum = analyse_bins(self.fft_size, bins);
+        let mut spectra = vec![];
 
+        for i in 0..self.channels {
+            let data = &self.bins[i];
+            let imaginary = rstft(data, self.fft_size, self.fft_size / 2, WindowType::Hanning);
+
+            let (magnitude, _) = complex_to_polar_rstft(&imaginary);
+            let power = make_power_spectrogram(&magnitude);
+            let log_spectrogram = make_log_spectrogram(&power, 10.0, 10e-8, None);
+
+            spectra.push(log_spectrogram);
+        }
+
+        // Interleave spectra data
+        let num_slices = spectra[0].len();
+        for slice_index in 0..num_slices {
+            for channel_index in 0..self.channels {
                 if let Some(raw) = &mut self.raw {
-                    raw.results
-                        .extend(spectrum.iter().map(|f| f.to_le_bytes()).flatten());
+                    raw.results.extend(
+                        spectra[channel_index][slice_index]
+                            .iter()
+                            .flat_map(|&v| v.to_le_bytes()),
+                    );
                 }
 
                 if let Some(vis) = &mut self.vis {
-                    vis.extend(spectrum.iter().cloned());
+                    vis.extend(spectra[channel_index][slice_index].iter().cloned());
                 }
             }
         }
