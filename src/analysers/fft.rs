@@ -153,7 +153,7 @@ pub struct FftAnalyser {
     vis: Option<FftVisualizer>,
 }
 
-/** Writes FFT results to a .png file as little-endian raw bytes. */
+/** Writes FFT results to a .png file as little-endian raw f64s. */
 impl FftAnalyser {
     pub fn new(args: &Cli, wav: &Wav<i32>, path: Option<PathBuf>) -> Self {
         let channels = wav.n_channels() as usize;
@@ -246,7 +246,7 @@ impl Analyser for FftAnalyser {
         };
 
         let Ok(_) = writer.write_image_data(&raw.results) else {
-            println!("Could not write FFT image data");
+            println!("FFT: Could not write image data");
 
             return 0;
         };

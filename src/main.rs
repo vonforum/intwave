@@ -4,13 +4,34 @@ use std::process::ExitCode;
 use wavers::{Wav, WaversResult};
 
 use analwave::analysers::{
-    Analyser, fft::FftAnalyser, loudness::LoudnessAnalyser, underruns::UnderrunAnalyser,
+    Analyser, fft::FftAnalyser, loudness::LoudnessAnalyser, peaks::PeaksAnalyzer,
+    underruns::UnderrunAnalyser,
 };
 use analwave::cli::Cli;
 use analwave::output;
 use analwave::output::{fmt_frame, init_output};
 
 use analwave::json::write_json;
+
+/// Set png output path to either the provided PNG file path,
+/// or derive it from the JSON output path.
+fn calculate_png_path(
+    json: &Option<String>,
+    file: &Option<String>,
+    suffix: &str,
+) -> Option<PathBuf> {
+    if let Some(file) = file {
+        Some(PathBuf::from(file))
+    } else if let Some(json) = json {
+        let mut path = PathBuf::from(json);
+        let name = path.file_stem().unwrap().to_string_lossy();
+        path.set_file_name(format!("{name}_{suffix}.png"));
+
+        Some(path)
+    } else {
+        None
+    }
+}
 
 fn analyse(args: &Cli, wav: &mut Wav<i32>) -> Result<u8, ()> {
     let mut return_code = 0;
@@ -27,23 +48,10 @@ fn analyse(args: &Cli, wav: &mut Wav<i32>) -> Result<u8, ()> {
         analysers.push(Box::new(UnderrunAnalyser::new(args, wav)));
     }
 
-    #[cfg(feature = "fft")]
     if args.fft || args.fft_vis.is_some() {
         let mut path = None;
         if args.fft {
-            // Set FFT output path to either the provided FFT file path,
-            // or derive it from the JSON output path.
-            path = if let Some(file) = args.fft_file.as_ref() {
-                Some(PathBuf::from(file))
-            } else if let Some(json) = args.json.as_ref() {
-                let mut path = PathBuf::from(json);
-                let name = path.file_stem().unwrap().to_string_lossy();
-                path.set_file_name(format!("{name}_fft.png"));
-
-                Some(path)
-            } else {
-                None
-            };
+            path = calculate_png_path(&args.json, &args.fft_file, "fft");
         }
 
         if args.fft && path.is_none() {
@@ -53,6 +61,22 @@ fn analyse(args: &Cli, wav: &mut Wav<i32>) -> Result<u8, ()> {
             return Err(());
         } else {
             analysers.push(Box::new(FftAnalyser::new(args, wav, path)));
+        }
+    }
+
+    if args.peaks {
+        let mut path = None;
+        if args.peaks {
+            path = calculate_png_path(&args.json, &args.peaks_file, "peaks");
+        }
+
+        if let Some(path) = path {
+            analysers.push(Box::new(PeaksAnalyzer::new(args, wav, path)));
+        } else {
+            println!(
+                "Peaks output was enabled but no path could be determined, please provide --peaks-file or --json"
+            );
+            return Err(());
         }
     }
 
@@ -77,7 +101,6 @@ fn analyse(args: &Cli, wav: &mut Wav<i32>) -> Result<u8, ()> {
         output!("[+] underrun threshold: {} samples", &args.samples);
     }
 
-    #[cfg(feature = "fft")]
     if args.fft || args.fft_vis.is_some() {
         output!("[+] FFT bins:           {}", &args.fft_bins);
     }

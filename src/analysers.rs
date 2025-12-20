@@ -1,8 +1,8 @@
 use wavers::Samples;
 
-#[cfg(feature = "fft")]
 pub mod fft;
 pub mod loudness;
+pub mod peaks;
 pub mod underruns;
 
 pub trait Analyser {

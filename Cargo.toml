@@ -1,6 +1,6 @@
 [package]
 name = "analwave"
-version = "0.4.0"
+version = "0.5.0"
 edition = "2024"
 default-run = "analwave"
 
@@ -11,13 +11,5 @@ indicatif = "0.18.0"
 wavers = "1.5.1"
 serde = { version = "1.0.228", features = ["derive"] }
 serde_json = "1.0.145"
-aus = { version = "0.1.8", optional = true }
-png = { version = "0.18.0", optional = true }
-
-[features]
-default = ["fft"]
-fft = ["dep:aus", "dep:png"]
-
-[[bin]]
-name = "fft-vis"
-required-features = ["fft"]
+aus = "0.1.8"
+png = "0.18.0"

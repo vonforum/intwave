@@ -66,4 +66,12 @@ pub struct Cli {
     /// Visualize the FFT output to the given file
     #[arg(long)]
     pub fft_vis: Option<String>,
+
+    /// Track peaks to file
+    #[arg(short, long, default_value_t = false)]
+    pub peaks: bool,
+
+    /// Peaks output file (defaults to <json_file>_peaks.png)
+    #[arg(long)]
+    pub peaks_file: Option<String>,
 }
